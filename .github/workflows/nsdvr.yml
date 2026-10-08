@@ -33,6 +33,8 @@ jobs:
 
       - name: Build official baseline (804fd36)
         run: |
+          # the workspace is owned by the runner user, not the container's root
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           mkdir -p baseline && git archive 804fd36 sysmodule | tar -x -C baseline
           make -C baseline/sysmodule -j"$(nproc)"
 
