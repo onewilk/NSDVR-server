@@ -33,7 +33,9 @@ run ext_codec_switching "$VIDEO" --seconds 9 --codec opus \
 	--ctrl "1.5:adpcm,3:pcm24,4.5:opus:64:10:10,6:opus:160:3:20,7.5:pcm48" --expect-codecs pcm48,pcm24,adpcm,opus
 run official_client "$VIDEO" --legacy --seconds 4 --expect-no-diag
 run stall_300ms_every_2s "$VIDEO --stall-every 2 --stall-ms 300" --seconds 8 --codec adpcm --expect-gaps-after-slow 2 --expect-min-gaps 2
-run short_stall_no_gap "$VIDEO --stall-every 2 --stall-ms 60" --seconds 6 --codec pcm24 --expect-max-gaps 0
+# A stall well inside the grc queue must not cause a gap. The queue is 6 frames (~200 ms) here instead of the
+# default 3 so that scheduling jitter on slow CI machines (a 60 ms stall measured up to ~135 ms) cannot turn it into one.
+run short_stall_no_gap "$VIDEO --stall-every 2 --stall-ms 60 --grc-queue 6" --seconds 6 --codec pcm24 --expect-max-gaps 0
 run source_drops_only "$VIDEO --drop-every 25" --seconds 6 --codec opus --expect-min-gaps 4 --expect-max-gaps-after-slow 0
 run control_fuzzing "" --seconds 8 --codec opus --fuzz-ctrl
 run batching0_opus10ms "" --seconds 4 --codec opus --frame 10 --batching 0
