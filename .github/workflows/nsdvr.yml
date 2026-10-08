@@ -1,0 +1,125 @@
+# NSDVR experimental branch: builds the sysmodule and runs the host tests on every push and pull request.
+# The upstream SysDVR workflows only run for master and are left untouched. No release is published yet: the
+# extension has not been tested on real hardware, so the build is only kept as a workflow artifact.
+name: NSDVR
+
+on:
+  push:
+    branches: [nsdvr]
+  pull_request:
+    branches: [nsdvr]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sysmodule:
+    name: Sysmodule
+    runs-on: ubuntu-latest
+    # Same devkitA64 image as build_nsdvr_docker.sh was measured with (GCC 15.2), pinned by digest.
+    container: devkitpro/devkita64@sha256:1fc388c3a0d34bd2045a6dadcb1020e069d5f876a187fd705de14b4440c00282
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # the official baseline (804fd36) is built for the size comparison
+
+      - name: Build NSDVR sysmodule
+        run: make -C sysmodule -j"$(nproc)"
+
+      - name: Build official baseline (804fd36)
+        run: |
+          mkdir -p baseline && git archive 804fd36 sysmodule | tar -x -C baseline
+          make -C baseline/sysmodule -j"$(nproc)"
+
+      - name: Package
+        run: |
+          grep -aq SYSDVR_BUILD_FULL sysmodule/sysmodule.nsp || { echo "::error::version tag missing"; exit 1; }
+          c=dist/NSDVR-sysmodule/atmosphere/contents/00FF0000A53BB665
+          mkdir -p "$c/flags" dist/debug
+          cp sysmodule/sysmodule.nsp "$c/exefs.nsp"
+          cp sysmodule/toolbox.json "$c/toolbox.json"
+          echo . > "$c/flags/boot2.flag"
+          cp sysmodule/sysmodule.elf dist/debug/main.elf
+          cp sysmodule/sysmodule.nso dist/debug/sysmodule.nso
+          cp sysmodule/build/sysmodule.map dist/debug/sysmodule.map 2>/dev/null || true
+
+      - name: Size compared with the official build
+        run: |
+          size="$DEVKITPRO/devkitA64/bin/aarch64-none-elf-size"
+          {
+            echo "### Sysmodule size (bytes)"
+            echo
+            echo "| Section | Official 804fd36 | NSDVR |"
+            echo "|---|---:|---:|"
+            for s in .text .rodata .data .bss; do
+              a=$("$size" -A baseline/sysmodule/sysmodule.elf | awk -v s="$s" '$1==s{print $2}')
+              b=$("$size" -A sysmodule/sysmodule.elf | awk -v s="$s" '$1==s{print $2}')
+              echo "| $s | $a | $b |"
+            done
+            ta=$("$size" baseline/sysmodule/sysmodule.elf | awk 'NR==2{print $4}')
+            tb=$("$size" sysmodule/sysmodule.elf | awk 'NR==2{print $4}')
+            echo "| total | $ta | $tb |"
+            echo
+            echo "Difference: $(( (tb - ta) / 1024 )) KB"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NSDVR-sysmodule
+          path: dist/NSDVR-sysmodule/
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NSDVR-sysmodule-debug
+          path: dist/debug/
+
+  host-tests:
+    name: Host tests (macOS)
+    # host/ uses mach APIs for the CPU statistics, so it only builds on macOS.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: NSDVR-server
+
+      # The client repository provides tools/make_demo_h264.swift for the end-to-end test video.
+      - uses: actions/checkout@v4
+        with:
+          repository: onewilk/NSDVR
+          path: NSDVR
+
+      - name: Cache test audio
+        id: audio
+        uses: actions/cache@v4
+        with:
+          path: NSDVR/audio_eval/src/aliens_48k.wav
+          key: test-audio-aliens-48k-v1
+
+      # Raspberrymusic – Aliens, Wikimedia Commons, CC BY 3.0 (see host/README.md).
+      - name: Download test audio
+        if: steps.audio.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p NSDVR/audio_eval/src
+          curl -fsSL -A "NSDVR-CI (https://github.com/onewilk/NSDVR-server)" -o aliens.flac \
+            "https://upload.wikimedia.org/wikipedia/commons/6/65/Raspberrymusic_-_Aliens_%28trailer_music%3B_cinematic_epic_electronic_classical_music%29.flac"
+          afconvert -f WAVE -d LEI16@48000 -c 2 aliens.flac NSDVR/audio_eval/src/aliens_48k.wav
+
+      - name: Build
+        working-directory: NSDVR-server/host
+        run: make -j"$(sysctl -n hw.ncpu)"
+
+      - name: Unit and fuzz tests (ASan + UBSan)
+        working-directory: NSDVR-server/host
+        run: make test
+
+      - name: End-to-end self test
+        working-directory: NSDVR-server/host
+        run: |
+          make demo-h264
+          make selftest
