@@ -1,4 +1,12 @@
 # SysDVR
+
+> [!NOTE]
+> **NSDVR experimental branch.** This is an unofficial fork of [SysDVR](https://github.com/exelix11/SysDVR). The
+> `nsdvr` branch adds the server side of the backward-compatible protocol extension used by
+> [NSDVR](https://github.com/onewilk/NSDVR), a third-party SysDVR client for HarmonyOS: switchable audio
+> compression (PCM 24 kHz, IMA ADPCM, Opus) and diagnostics. It is experimental and not an official SysDVR release.
+> See [NSDVR.md](NSDVR.md) for details ([简体中文](NSDVR.zh-CN.md)). The original SysDVR readme follows unchanged.
+
 [![Discord](https://img.shields.io/discord/643436008452521984.svg?logo=discord&logoColor=white&label=Discord&color=7289DA
 )](https://discord.gg/rqU5Tf8)
 [![Latest release](https://img.shields.io/github/v/release/exelix11/SysDVR)](https://github.com/exelix11/SysDVR/releases)

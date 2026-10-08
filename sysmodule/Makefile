@@ -42,6 +42,16 @@ BUILD		:=	build
 SOURCES		:=	source source/sysmodule source/rtsp source/modes source/USB source/ipc source/third_party source/net
 DATA		:=	data
 INCLUDES	:=	include
+
+# NSDVR experimental extension (TCP bridge only): portable code in source/next plus libopus
+# (third_party/opus, fixed point, CELT only) built into a static library with its own flags below.
+ifeq (,$(findstring USB_ONLY,$(DEFINES)))
+SOURCES		+=	source/next
+NEXT_EXT	:=	1
+endif
+export NEXT_EXT
+export NEXT_OPUS_DIR	:=	$(abspath $(TOPDIR)/../third_party/opus)
+export NEXT_OPUS_NX	:=	$(abspath $(TOPDIR)/../third_party/opus_nx)
 #ROMFS	:=	romfs
 
 #---------------------------------------------------------------------------------
@@ -54,12 +64,20 @@ CFLAGS	:=	-g -Wall -Werror -O3 -ffunction-sections \
 
 CFLAGS	+=	$(INCLUDE) -D__SWITCH__
 
+ifeq ($(NEXT_EXT),1)
+CFLAGS	+=	-I$(NEXT_OPUS_DIR)/include
+endif
+
 CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions
 
 ASFLAGS	:=	-g $(ARCH)
 LDFLAGS	=	-specs=$(DEVKITPRO)/libnx/switch.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
+ifeq ($(NEXT_EXT),1)
+LIBS	:= -lopus_nx -lnx
+else
 LIBS	:= -lnx
+endif
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing
@@ -111,7 +129,7 @@ export INCLUDE	:=	$(foreach dir,$(INCLUDES),-I$(CURDIR)/$(dir)) \
 			$(foreach dir,$(LIBDIRS),-I$(dir)/include) \
 			-I$(CURDIR)/$(BUILD)
 
-export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib)
+export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib) -L$(CURDIR)/$(BUILD)
 
 ifeq ($(strip $(CONFIG_JSON)),)
 	jsons := $(wildcard *.json)
@@ -206,6 +224,37 @@ endif
 $(OUTPUT).elf	:	$(OFILES)
 
 $(OFILES_SRC)	: $(HFILES_BIN)
+
+#---------------------------------------------------------------------------------
+# NSDVR: libopus as a static library (only referenced objects end up in the elf)
+#---------------------------------------------------------------------------------
+ifeq ($(NEXT_EXT),1)
+OPUS_DIR	:=	$(NEXT_OPUS_DIR)
+include $(NEXT_OPUS_NX)/opus_files.mk
+OPUS_OFILES	:=	$(patsubst %.c,opus/%.o,$(OPUS_NX_SRC) $(OPUS_NX_SRC_NEON)) opus/silk_enc_stub.o opus/opus_nx_helpers.o
+OPUS_OPT	?=	-O2
+# No unwind tables: nothing unwinds through libopus (C only, errors come back via longjmp)
+OPUS_CFLAGS	:=	-g $(OPUS_OPT) -std=gnu11 -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables \
+			$(ARCH) -D__SWITCH__ \
+			-include $(NEXT_OPUS_NX)/next_opus_config.h $(OPUS_NX_INC) -w
+
+opus/%.o: $(NEXT_OPUS_DIR)/%.c
+	@mkdir -p $(dir $@)
+	@$(CC) -MMD -MP -MF $(@:.o=.d) $(OPUS_CFLAGS) -c $< -o $@
+
+opus/%.o: $(NEXT_OPUS_NX)/%.c
+	@mkdir -p $(dir $@)
+	@$(CC) -MMD -MP -MF $(@:.o=.d) $(OPUS_CFLAGS) -c $< -o $@
+
+libopus_nx.a: $(OPUS_OFILES)
+	@echo building $@
+	@rm -f $@
+	@$(AR) rcs $@ $^
+
+$(OUTPUT).elf	:	libopus_nx.a
+
+-include $(OPUS_OFILES:.o=.d)
+endif
 
 #---------------------------------------------------------------------------------
 # you need a rule like this for each extension you use as binary data

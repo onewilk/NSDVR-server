@@ -1,0 +1,3 @@
+# The root .gitignore ignores any arm/ and x86/ directory (Visual Studio template); libopus needs them
+!arm/
+!x86/

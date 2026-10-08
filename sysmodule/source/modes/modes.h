@@ -7,6 +7,10 @@
 #include "defines.h"
 #include "../core.h"
 
+#if !defined(USB_ONLY)
+#include "../next/next_audio.h"
+#endif
+
 #if defined(USB_ONLY)
 static const bool IsThreadRunning = true;
 #else
@@ -47,6 +51,11 @@ typedef union {
 		char AudioSendBuffer[MaxRTPPacket + RTSPBinHeaderSize];
 		u8 alignas(0x1000) ServerThreadStackArea[0x2000 + LOGGING_STACK_BOOST];
 	} RTSPMode;
+	// NSDVR: Opus encoder state, libopus pseudostack and frame scratch. Only TCP clients that
+	// request the extension use it; the union keeps the cost at max(RTSP, TCP) instead of the sum.
+	struct {
+		NextAudioWork AudioWork;
+	} TcpMode;
 #endif
 } StaticBuffers;
 

@@ -64,12 +64,23 @@ typedef struct {
 
 _Static_assert(sizeof(VideoPacket) == sizeof(PacketHeader) + VbufSz);
 
+/*
+	NSDVR: extension clients (TCP only) capture audio at an offset inside Data so the encoders can
+	work in place: the Opus carry (< 1 frame, up to 3836 bytes) or the PCM24/ADPCM header area sits in
+	front of the grc data. See source/next/next_audio.h (NEXT_AUDIO_HEADROOM). Not needed for USB_ONLY.
+*/
+#if defined(USB_ONLY)
+#define AudioExtHeadroom 0
+#else
+#define AudioExtHeadroom 3840
+#endif
+
 typedef struct {
 	PacketHeader Header;
-	u8 Data[AbufSz * (1 + MaxABatching)];
+	u8 Data[AbufSz * (1 + MaxABatching) + AudioExtHeadroom];
 } AudioPacket;
 
-_Static_assert(sizeof(AudioPacket) == sizeof(PacketHeader) + AbufSz * (1 + MaxABatching));
+_Static_assert(sizeof(AudioPacket) == sizeof(PacketHeader) + AbufSz * (1 + MaxABatching) + AudioExtHeadroom);
 
 // Error values
 #define ERROR_TYPE_VIDEO_CAP 1
@@ -98,6 +109,10 @@ bool CaptureReadVideo();
 
 // Captures audio with grc:d, if no game is running this blocks and there's no way to terminate the call
 bool CaptureReadAudio();
+
+// Same as CaptureReadAudio() but the grc data is written to APkt.Data + offset (DataSize excludes the
+// offset). Error packets are still written at APkt.Data. CaptureReadAudio() == CaptureReadAudioAt(0).
+bool CaptureReadAudioAt(u32 offset);
 
 // When a client first connects clear old data structures and prepare hashing modes
 void CaptureVideoConnected();

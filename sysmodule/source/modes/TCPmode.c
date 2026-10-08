@@ -1,8 +1,11 @@
 #if !defined(USB_ONLY)
+#include <string.h>
 #include "modes.h"
 #include "../net/sockets.h"
 #include "../capture.h"
 #include "proto.h"
+#include "../next/next_session.h"
+#include "../next/next_platform.h"
 
 int g_tcpEnableBroadcast = 1;
 
@@ -82,7 +85,7 @@ static inline int TCP_BeginListen(GrcStream stream)
 	return SocketTcpListen(port);
 }
 
-static inline bool TCP_DoHandshake(GrcStream stream, int socket)
+static inline bool TCP_DoHandshake(GrcStream stream, int socket, NextExtConfig* ext)
 {
 	u8 buffer[PROTO_HANDSHAKE_SIZE];
 
@@ -101,10 +104,15 @@ static inline bool TCP_DoHandshake(GrcStream stream, int socket)
 	if (!SocketSendAll(socket, &res.Result, sizeof(res.Result)))
 		return false;
 
+	// NSDVR: FeatureFlags bit 2 + Reserved bytes. The official code above ignores both, so
+	// clients without the flag get exactly the official behaviour.
+	if (res.Result.Code == Handshake_Ok)
+		*ext = NextExt_ParseHandshake(buffer, sizeof(buffer));
+
 	return res.Result.Code == Handshake_Ok;
 }
 
-static inline int TCP_Accept(GrcStream stream)
+static inline int TCP_Accept(GrcStream stream, NextExtConfig* ext)
 {
 restart:
 	bool advertise = false;
@@ -133,7 +141,8 @@ restart:
 		{
 			LOG("TCP %d Got connection %d\n", (int)stream, client);
 			
-			if (TCP_DoHandshake(stream, client))
+			memset(ext, 0, sizeof(*ext));
+			if (TCP_DoHandshake(stream, client, ext))
 			{
 				LOG("TCP %d Accepted client %d\n", (int)stream, client);
 				ret = client;
@@ -196,8 +205,14 @@ static void TCP_StreamThread(void* argConfig)
 
 	LOG("TCP %d Thread started\n", (int)config.Type);
 
+	// Lets the NSDVR diagnostics account this thread's CPU ticks
+	if (config.Type == GrcStream_Audio)
+		NextPlat_AudioThreadStarted();
+
 	while (IsThreadRunning) {
-		int client = TCP_Accept(config.Type);
+		NextExtConfig ext;
+		memset(&ext, 0, sizeof(ext));
+		int client = TCP_Accept(config.Type, &ext);
 		if (client == SOCKET_INVALID) {
 			LOG("TCP %d Accept failed\n", (int)config.Type);
 			continue;
@@ -212,7 +227,16 @@ static void TCP_StreamThread(void* argConfig)
 		svcSleepThread(5E+8);
 
 		u64 total = 0;
-		while (true)
+		if (ext.enabled)
+		{
+			// NSDVR extension (codecs, control messages, diagnostics, IP_TOS): source/next/next_session.c
+			LOG("TCP %d NSDVR extension session\n", (int)config.Type);
+			if (config.Type == GrcStream_Video)
+				NextSession_Video(client, &ext);
+			else
+				NextSession_Audio(client, &ext);
+		}
+		else while (true)
 		{
 			// Do not check errors here, in case grc failed we will send the error packet to the client
 			ReadStream();

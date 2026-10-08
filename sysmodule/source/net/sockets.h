@@ -30,6 +30,15 @@ void SocketClose(int* socket);
 // Returns true on success
 bool SocketSendAll(int socket, const void* buffer, u32 size);
 
+// Like SocketSendAll; allowIncoming = true does not treat pending incoming data as a disconnection
+bool SocketSendAllEx(int socket, const void* buffer, u32 size, bool allowIncoming);
+
+// Non-blocking receive: > 0 bytes read, 0 nothing pending, -1 closed or failed
+s32 SocketRecvNonBlocking(int socket, void* buffer, u32 size);
+
+// setsockopt(IPPROTO_IP, IP_TOS); returns true on success
+bool SocketSetTos(int socket, int tos);
+
 // Returns true on success
 bool SocketUDPSendTo(int socket, const void* data, u32 size, struct sockaddr* addr, socklen_t addrlen);
 

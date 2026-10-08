@@ -246,11 +246,11 @@ typedef enum {
 	PollResult_Other
 } PollResult;
 
-static PollResult PolLScoket(int socket, int timeoutMs)
+static PollResult PolLScoket(int socket, int timeoutMs, short events)
 {
 	struct pollfd pollinfo;
 	pollinfo.fd = socket;
-	pollinfo.events = POLLOUT | POLLIN;
+	pollinfo.events = events;
 	pollinfo.revents = 0;
 
 	int rc = bsdPoll(&pollinfo, 1, timeoutMs);
@@ -274,10 +274,15 @@ static PollResult PolLScoket(int socket, int timeoutMs)
 	return PollResult_Timeout;
 }
 
-bool SocketSendAll(int sock, const void* buffer, u32 size)
+// allowIncoming = false is the official behaviour: data from the peer while waiting for the socket
+// to become writable is treated as a disconnection. The NSDVR audio channel passes true because the
+// client sends control messages on it; then only POLLOUT is polled (errors/hangup still end it).
+static bool SocketSendAllImpl(int sock, const void* buffer, u32 size, bool allowIncoming)
 {
 	if (sock == SOCKET_INVALID)
 		return false;
+
+	const short events = allowIncoming ? POLLOUT : (POLLOUT | POLLIN);
 
 	u32 sent = 0;
 	while (sent < size)
@@ -289,7 +294,7 @@ bool SocketSendAll(int sock, const void* buffer, u32 size)
 			{
 				int pollCount = 0;
 			poll_again:
-				PollResult pollRes = PolLScoket(sock, 1000);
+				PollResult pollRes = PolLScoket(sock, 1000, events);
 
 				// Leave early if we're switching modes
 				if (!IsThreadRunning)
@@ -319,6 +324,35 @@ bool SocketSendAll(int sock, const void* buffer, u32 size)
 	}
 
 	return true;
+}
+
+bool SocketSendAll(int sock, const void* buffer, u32 size)
+{
+	return SocketSendAllImpl(sock, buffer, size, false);
+}
+
+bool SocketSendAllEx(int sock, const void* buffer, u32 size, bool allowIncoming)
+{
+	return SocketSendAllImpl(sock, buffer, size, allowIncoming);
+}
+
+s32 SocketRecvNonBlocking(int socket, void* buffer, u32 size)
+{
+	if (socket == SOCKET_INVALID)
+		return -1;
+
+	ssize_t r = bsdRecv(socket, buffer, size, MSG_DONTWAIT);
+	if (r > 0)
+		return (s32)(r > (ssize_t)size ? (ssize_t)size : r);
+	if (r == 0)
+		return -1; // orderly shutdown by the peer
+	return g_bsdErrno == NX_EAGAIN ? 0 : -1;
+}
+
+bool SocketSetTos(int socket, int tos)
+{
+	int optVal = tos;
+	return bsdSetSockOpt(socket, IPPROTO_IP, IP_TOS, &optVal, sizeof(optVal)) != -1;
 }
 
 s32 SocketRecv(int socket, void* buffer, u32 size)

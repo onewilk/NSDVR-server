@@ -88,11 +88,25 @@ void CaptureAudioConnected()
 
 bool CaptureReadAudio()
 {
+	return CaptureReadAudioAt(0);
+}
+
+bool CaptureReadAudioAt(u32 offset)
+{
 	u32 dataSize = 0; u64 timestamp = 0;
+
+	// Never write past APkt.Data, whatever offset we were given (offset 0 always fits)
+	if (offset > sizeof(APkt.Data) - AbufSz * (1 + AudioBatching))
+	{
+		PacketMakeError(ERROR_TYPE_AUDIO_CAP, &APkt.Header, APkt.Data, 0, offset, 0);
+		return false;
+	}
+
+	u8* base = APkt.Data + offset;
 
 	Result rc = grcdServiceTransfer(
 		&grcdAudio, GrcStream_Audio,
-		APkt.Data, AbufSz,
+		base, AbufSz,
 		NULL,
 		&dataSize,
 		&timestamp);
@@ -104,7 +118,7 @@ bool CaptureReadAudio()
 			PacketMakeError(ERROR_TYPE_AUDIO_INIT, &APkt.Header, APkt.Data, rc, 0, 0);
 			return false;
 		}
-		else return CaptureReadAudio();
+		else return CaptureReadAudioAt(offset);
 	}
 
 	APkt.Header.DataSize = dataSize;
@@ -123,7 +137,7 @@ bool CaptureReadAudio()
 
 		rc = grcdServiceTransfer(
 			&grcdAudio, GrcStream_Audio,
-			APkt.Data + AbufSz + (AbufSz * i), AbufSz,
+			base + AbufSz + (AbufSz * i), AbufSz,
 			NULL,
 			&tmpSize,
 			NULL);

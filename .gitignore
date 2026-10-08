@@ -372,3 +372,7 @@ Client/Platform/Linux/tmp/
 Client/Platform/Linux/shared-modules/
 Client/Platform/Linux-x64.zip
 Client/Platform/Resources/linux-x64/native/
+# NSDVR
+/out/
+/host/build*/
+/host/READY
