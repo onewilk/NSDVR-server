@@ -115,6 +115,11 @@ static Thread AudioThread;
 #ifndef USB_ONLY
 static Thread VideoThread;
 
+#if PERFLOG
+Handle PerfLog_VideoThreadHandle(void) { return VideoThread.handle; }
+Handle PerfLog_AudioThreadHandle(void) { return AudioThread.handle; }
+#endif
+
 const StreamMode* CurrentMode = NULL;
 
 // Mode switching is complicated because the streaming thread can get stuck indefinitely waiting for grc when a game is not running
