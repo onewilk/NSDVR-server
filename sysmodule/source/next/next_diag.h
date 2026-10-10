@@ -38,6 +38,9 @@ void NextDiag_SetTos(int bit, bool ok);
 bool NextDiag_Due(uint64_t nowUs);
 // Fills a report for the window that just ended and starts a new one
 void NextDiag_Collect(uint64_t nowUs, const NextCpuSample* cpu, NextDiagReport* out);
+// Separate counters for the test-only perf logger (independent of the diagnostics windows):
+// returns and clears the audio encode time and packet count since the last call
+void NextDiag_TakePerf(uint32_t* encodeUs, uint32_t* packets);
 
 #ifdef __cplusplus
 }

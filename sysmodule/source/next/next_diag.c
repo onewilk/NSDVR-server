@@ -24,6 +24,8 @@ static atomic_uint AudioPackets;
 static atomic_uint AudioEncodeUs;
 static atomic_uint AudioSendUs;
 static atomic_uint TosFlags;
+static atomic_uint PerfEncodeUs;
+static atomic_uint PerfPackets;
 
 static uint32_t Permille(uint64_t num, uint64_t den)
 {
@@ -80,6 +82,14 @@ void NextDiag_OnAudioPacket(uint64_t encodeUs, uint64_t sendUs)
 	atomic_fetch_add(&AudioPackets, 1u);
 	atomic_fetch_add(&AudioEncodeUs, next_sat32(encodeUs));
 	atomic_fetch_add(&AudioSendUs, next_sat32(sendUs));
+	atomic_fetch_add(&PerfEncodeUs, next_sat32(encodeUs));
+	atomic_fetch_add(&PerfPackets, 1u);
+}
+
+void NextDiag_TakePerf(uint32_t* encodeUs, uint32_t* packets)
+{
+	*encodeUs = atomic_exchange(&PerfEncodeUs, 0);
+	*packets = atomic_exchange(&PerfPackets, 0);
 }
 
 void NextDiag_SetTos(int bit, bool ok)

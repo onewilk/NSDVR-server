@@ -120,4 +120,58 @@ void NextPlat_CpuSample(NextCpuSample* s)
 	}
 }
 
+#if PERFLOG
+#include "../perflog/perflog.h"
+
+void PerfLog_TakeAudioEncode(u32* encodeUs, u32* packets)
+{
+	NextDiag_TakePerf(encodeUs, packets);
+}
+
+static char* PerfPut(char* p, char* end, const char* s)
+{
+	while (*s && p < end)
+		*p++ = *s++;
+	return p;
+}
+
+static char* PerfPutU(char* p, char* end, u32 v)
+{
+	char tmp[10];
+	int n = 0;
+	do {
+		tmp[n++] = (char)('0' + v % 10);
+		v /= 10;
+	} while (v);
+	while (n && p < end)
+		*p++ = tmp[--n];
+	return p;
+}
+
+// Same tags as the client's comboTag(): pcm, 24k, adpcm, opus/<kbps>/<complexity>/<frame ms>
+void PerfLog_AudioTag(char* out, u32 cap)
+{
+	if (cap == 0)
+		return;
+	NextAudioConfig c = NextAudio_Current();
+	char* p = out;
+	char* end = out + cap - 1;
+	switch (c.codec)
+	{
+	case NextCodec_PCM48: p = PerfPut(p, end, "pcm"); break;
+	case NextCodec_PCM24: p = PerfPut(p, end, "24k"); break;
+	case NextCodec_ADPCM: p = PerfPut(p, end, "adpcm"); break;
+	case NextCodec_OPUS:
+		p = PerfPut(p, end, "opus/");
+		p = PerfPutU(p, end, c.opusKbps);
+		p = PerfPut(p, end, "/");
+		p = PerfPutU(p, end, c.complexity);
+		p = PerfPut(p, end, c.frameCode == NextOpusFrame_10ms ? "/10" : "/20");
+		break;
+	default: p = PerfPut(p, end, "?"); break;
+	}
+	*p = 0;
+}
+#endif
+
 #endif
