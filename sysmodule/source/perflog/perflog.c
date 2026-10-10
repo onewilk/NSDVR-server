@@ -29,9 +29,10 @@ static atomic_uint_fast64_t SentBytes;
 // Busy permille of cores 0-2 for the window that just ended, -1 = unavailable
 static atomic_int CoreBusy[3] = { -1, -1, -1 };
 
-__attribute__((weak)) int PerfLog_AudioCodec(void)
+__attribute__((weak)) void PerfLog_AudioTag(char* out, u32 cap)
 {
-	return -1;
+	if (cap)
+		out[0] = 0;
 }
 
 __attribute__((weak)) void PerfLog_TakeAudioEncode(u32* encodeUs, u32* packets)
@@ -242,7 +243,7 @@ static void OpenLogFile(u64 unix)
 	static const char header[] =
 		"# SysDVR perf log. cpu/thread columns are permille of one core; c0-c3 = busy permille of each core\n"
 		"unix,uptime_s,title_id,c0,c1,c2,c3,sysdvr_cpu,video_cpu,audio_cpu,main_cpu,log_cpu,"
-		"send_kbps,codec,enc_us,audio_pkts,cpu_mhz,gpu_mhz,sys_free_kb\n";
+		"send_kbps,audio,enc_us,audio_pkts,cpu_mhz,gpu_mhz,sys_free_kb\n";
 	Append(header, sizeof(header) - 1);
 	Flush();
 }
@@ -373,7 +374,14 @@ static void WriterMain(void* arg)
 		p = PutI64(p, Permille(mT, dWall)); *p++ = ',';
 		p = PutI64(p, Permille(lT, dWall)); *p++ = ',';
 		p = PutU64(p, dWall ? sent * 8 * freq / dWall / 1000 : 0); *p++ = ',';
-		p = PutI64(p, PerfLog_AudioCodec()); *p++ = ',';
+		// audio: the extension's encoding while it sends packets; "official" when the official PCM path
+		// is streaming (its thread uses CPU, no extension packets); "-" when no audio is streaming
+		char tag[24];
+		tag[0] = 0;
+		if (pkts > 0)
+			PerfLog_AudioTag(tag, sizeof(tag));
+		tag[sizeof(tag) - 1] = 0;
+		p = PutStr(p, pkts > 0 && tag[0] ? tag : (Permille(aT, dWall) > 0 ? "official" : "-")); *p++ = ',';
 		p = PutU64(p, encUs); *p++ = ',';
 		p = PutU64(p, pkts); *p++ = ',';
 		p = PutU64(p, ClockMhz(&CpuClock)); *p++ = ',';

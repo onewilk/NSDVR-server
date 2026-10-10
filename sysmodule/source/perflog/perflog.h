@@ -6,7 +6,7 @@
 //     by a thread pinned to each core),
 //   - CPU time of SysDVR's own threads (video, audio, IPC/main) and of the logger itself,
 //   - bytes sent by SysDVR, the foreground title, the CPU clock and the free system memory pool,
-//   - with the NSDVR extension: the active audio codec and its encode time.
+//   - which audio path is streaming (official PCM or the extension's encoding) and its encode time.
 // Lines are buffered and written every few seconds, so the SD card is touched rarely. The logger
 // keeps running while nothing is streaming, which gives the "game only" baseline.
 
@@ -23,11 +23,12 @@ void PerfLog_AddSent(u32 bytes);
 Handle PerfLog_VideoThreadHandle(void);
 Handle PerfLog_AudioThreadHandle(void);
 
-// Implemented by the NSDVR extension. Weak defaults in perflog.c describe the official build:
-// codec -1 (official PCM) and no encode time.
-int PerfLog_AudioCodec(void);
-// Returns and clears the encode time (us) and audio packet count accumulated since the last call
+// Implemented by the NSDVR extension; the weak defaults in perflog.c describe the official build.
+// Returns and clears the encode time (us) and the number of extension audio packets sent since the
+// last call (the official build never sends any)
 void PerfLog_TakeAudioEncode(u32* encodeUs, u32* packets);
+// Active extension audio encoding, written like the client's tags: pcm, 24k, adpcm, opus/96/5/20
+void PerfLog_AudioTag(char* out, u32 cap);
 
 #else
 
