@@ -6,6 +6,7 @@
 #include <netinet/tcp.h> // IPPROTO_TCP, TCP_NODELAY
 
 #include "sockets.h"
+#include "../perflog/perflog.h"
 #define NX_EAGAIN 11
 #define NX_O_NONBLOCK 0x800
 
@@ -320,6 +321,7 @@ static bool SocketSendAllImpl(int sock, const void* buffer, u32 size, bool allow
 		else if (res == 0)
 			return false;
 
+		PerfLog_AddSent((u32)res);
 		sent += res;
 	}
 

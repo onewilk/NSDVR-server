@@ -10,6 +10,7 @@
 #include "../core.h"
 #include "../modes/modes.h"
 #include "../capture.h"
+#include "../perflog/perflog.h"
 
 // As of SysDVR 6.0 the sysmodule can run with no dynamic allocations at all
 // All big buffers are statically allocated in the compile units where they're needed
@@ -174,6 +175,10 @@ int main(int argc, char* argv[])
 		SetModeID(TYPE_MODE_RTSP);
 	else if (FileExists("/config/sysdvr/tcp"))
 		SetModeID(TYPE_MODE_TCP);
+
+#if PERFLOG
+	PerfLog_Start(R_SUCCEEDED(fsInitResult) ? &sdCard : NULL);
+#endif
 
 	IpcThread();
 #endif

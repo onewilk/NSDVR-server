@@ -68,6 +68,14 @@ ifeq ($(NEXT_EXT),1)
 CFLAGS	+=	-I$(NEXT_OPUS_DIR)/include
 endif
 
+# Test-only performance logger (make PERFLOG=1): see source/perflog/perflog.h. Its sampler threads
+# run on cores 0-2, so it uses an NPDM that allows all four cores.
+ifeq ($(PERFLOG),1)
+SOURCES		+=	source/perflog
+CFLAGS		+=	-DPERFLOG=1
+CONFIG_JSON	:=	sysmodule.perflog.json
+endif
+
 CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions
 
 ASFLAGS	:=	-g $(ARCH)
