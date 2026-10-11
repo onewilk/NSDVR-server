@@ -29,7 +29,7 @@ It keeps running while nothing is streaming, which gives the game-only baseline.
 `./build_perflog_docker.sh` builds two variants with the devkitpro/devkita64 image:
 
 - `out/perflog-official`: branch `perflog` = official SysDVR (upstream master) + logger
-- `out/perflog-nsdvr`: branch `nsdvr-perflog` = NSDVR extension + logger
+- `out/perflog-nsdvr`: branch `nsdvr` = NSDVR extension + logger
 
 Both carry the same logger, so its small overhead cancels out when they are compared. The logger adds
 about 18 KB of code and 29 KB of static memory, and uses an NPDM that allows cores 0–3 (the sampler

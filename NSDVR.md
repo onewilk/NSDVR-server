@@ -85,6 +85,16 @@ backup and reboot.
 See [host/README.md](host/README.md): the same extension code is built on macOS with a simulated Switch, a test
 client, unit and fuzz tests (ASan/UBSan) and an end-to-end self test.
 
+## Measuring on the console
+
+[PERFLOG.md](PERFLOG.md): a test-only build option (`make PERFLOG=1`) that logs per-core CPU, SysDVR's thread CPU and
+the audio encoding to the SD card once per second, so codecs can be compared without reading an overlay by hand.
+
+Test reports:
+
+- [2026-10-11: audio compression](reports/2026-10-11-audio-compression/README.md): CPU cost of each encoding and its
+  effect on dropped frames
+
 ## License
 
 GPL-2.0, the same as SysDVR (see [LICENSE](LICENSE)). libopus is BSD-3-Clause (`third_party/opus/COPYING`).

@@ -2,7 +2,7 @@
 # Builds the two test-only perf logger variants (make PERFLOG=1) with the devkitpro/devkita64 Docker
 # image and packages them like ReleaseSysmodule.sh (atmosphere/contents/00FF0000A53BB665/...):
 #   out/perflog-official  branch perflog       = official SysDVR (master) + perf logger
-#   out/perflog-nsdvr     branch nsdvr-perflog = NSDVR extension + perf logger
+#   out/perflog-nsdvr     branch nsdvr = NSDVR extension + perf logger
 # The logger writes /config/sysdvr/perf/perf_<unix time>.csv on the SD card (see
 # sysmodule/source/perflog/perflog.h). Nothing is deployed anywhere.
 set -euo pipefail
@@ -27,7 +27,7 @@ build() { # <branch> <out name>
 }
 
 build perflog perflog-official
-build nsdvr-perflog perflog-nsdvr
+build nsdvr perflog-nsdvr
 
 docker run --rm -v "$ROOT":/work -w /work "$IMAGE" bash -c '
 export PATH=$DEVKITPRO/devkitA64/bin:$PATH

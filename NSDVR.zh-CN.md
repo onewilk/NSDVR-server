@@ -76,6 +76,15 @@
 见 [host/README.zh-CN.md](host/README.zh-CN.md)：同一份扩展代码在 macOS 上编译，配有模拟 Switch、测试客户端、
 单元和模糊测试（ASan/UBSan）以及端到端自测。
 
+## 在主机上测量
+
+[PERFLOG.md](PERFLOG.md)（英文）：仅测试用的编译选项（`make PERFLOG=1`），每秒把各核心 CPU、SysDVR 线程 CPU 和音频编码
+记录到 SD 卡，比较各编码时不用再人工读覆盖层。
+
+测试报告：
+
+- [2026-10-11：音频压缩](reports/2026-10-11-audio-compression/README.zh-CN.md)：各编码的 CPU 开销以及对丢帧的影响
+
 ## 许可证
 
 GPL-2.0，与 SysDVR 相同（见 [LICENSE](LICENSE)）。libopus 为 BSD-3-Clause（`third_party/opus/COPYING`）。
