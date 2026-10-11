@@ -8,8 +8,10 @@
 这不是 SysDVR 官方版本，与 SysDVR 项目没有关联。使用这个版本遇到的问题请不要反馈给上游 SysDVR。
 
 > [!WARNING]
-> 实验阶段。目前只在主机构建、单元/模糊测试和模拟 Switch 的端到端测试（`host/`）中验证过，devkitA64 能正常编译。
-> **还没有在真机上测试过。**
+> 实验阶段。已通过主机构建、单元/模糊测试和模拟 Switch 的端到端测试（`host/`）验证，目前**在一台真机上测试过**
+> （系统 22.5.0，见[测试报告](reports/2026-10-11-audio-compression/README.zh-CN.md)）。
+
+各版本的变化见 [CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md)。
 
 ## 新增内容
 
@@ -66,10 +68,13 @@
 仅适合愿意测试实验性 sysmodule 的用户：
 
 1. 先备份 SD 卡上的 `atmosphere/contents/00FF0000A53BB665/`。
-2. 用 `out/nsdvr/atmosphere` 覆盖，然后重启。
+2. 用 `out/nsdvr/atmosphere`（或发布包 zip 里的 `atmosphere` 文件夹）覆盖，然后重启。
 3. 用 NSDVR 通过 TCP Bridge 连接。官方客户端照常可用。
 
 覆盖前先确认剩余内存：扩展比官方版本多用约 164 KB。要恢复的话，把备份放回去再重启即可。
+
+打了标签（`nsdvr-v<版本号>`）的版本由 CI 发布为 GitHub 预发布版本：一个包含 `atmosphere` 文件夹的 zip，更新说明取自
+[CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md)。
 
 ## 没有 Switch 时的测试
 

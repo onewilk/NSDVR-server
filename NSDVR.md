@@ -10,8 +10,11 @@ It is not an official SysDVR release and is not affiliated with the SysDVR proje
 this build to upstream SysDVR.
 
 > [!WARNING]
-> Experimental. So far it has been verified with host builds, unit/fuzz tests and end-to-end tests against a simulated
-> Switch (`host/`), and it builds with devkitA64. It has **not been tested on real hardware yet**.
+> Experimental. It is verified with host builds, unit/fuzz tests and end-to-end tests against a simulated Switch
+> (`host/`), and so far it has been **tested on one real console** (firmware 22.5.0, see the
+> [test report](reports/2026-10-11-audio-compression/README.md)).
+
+Changes in each version: [CHANGELOG.md](CHANGELOG.md).
 
 ## What it adds
 
@@ -74,11 +77,14 @@ With a local devkitPro installation, `make -C sysmodule` works as in upstream.
 Only if you are comfortable testing experimental sysmodules:
 
 1. Back up `atmosphere/contents/00FF0000A53BB665/` from your SD card.
-2. Copy `out/nsdvr/atmosphere` over it and reboot.
+2. Copy `out/nsdvr/atmosphere` (or the `atmosphere` folder from a release zip) over it and reboot.
 3. Connect with NSDVR over TCP Bridge. Official clients keep working as before.
 
 Check the free memory first: the extension needs about 164 KB more than the official build. To go back, restore the
 backup and reboot.
+
+Tagged versions (`nsdvr-v<version>`) are published by CI as GitHub pre-releases: a zip with the `atmosphere` folder
+and the release notes from [CHANGELOG.md](CHANGELOG.md).
 
 ## Testing without a Switch
 

@@ -1,11 +1,12 @@
 # NSDVR experimental branch: builds the sysmodule and runs the host tests on every push and pull request.
-# The upstream SysDVR workflows only run for master and are left untouched. No release is published yet: the
-# extension has not been tested on real hardware, so the build is only kept as a workflow artifact.
+# The upstream SysDVR workflows only run for master and are left untouched. A nsdvr-v<version> tag also publishes
+# the sysmodule as a GitHub pre-release, with that version's CHANGELOG sections as the release notes.
 name: NSDVR
 
 on:
   push:
     branches: [nsdvr]
+    tags: ['nsdvr-v*']
   pull_request:
     branches: [nsdvr]
   workflow_dispatch:
@@ -125,3 +126,64 @@ jobs:
         run: |
           make demo-h264
           make selftest
+
+  release:
+    name: GitHub Release
+    if: startsWith(github.ref, 'refs/tags/nsdvr-v')
+    needs: [sysmodule, host-tests]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            CHANGELOG.md
+            CHANGELOG.zh-CN.md
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: NSDVR-sysmodule
+          path: pkg
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#nsdvr-v}"
+          # The "## <version> — <date>" section of each changelog, up to the next "## " heading
+          section() {
+            awk -v v="$VERSION" '/^## /{p = ($2 == v); next} p' "$1" | sed -e '/./,$!d'   # $(…) drops trailing blank lines
+          }
+          en=$(section CHANGELOG.md)
+          zh=$(section CHANGELOG.zh-CN.md)
+          if [ -z "$en" ] || [ -z "$zh" ]; then
+            echo "::error::CHANGELOG.md and CHANGELOG.zh-CN.md need a '## ${VERSION} — <date>' section"
+            exit 1
+          fi
+          mkdir dist
+          (cd pkg && zip -qr "../dist/NSDVR-sysmodule-${VERSION}.zip" atmosphere)
+          (cd dist && sha256sum -- * > SHA256SUMS.txt && cat SHA256SUMS.txt)
+          {
+            echo "## What's new"
+            echo
+            echo "$en"
+            echo
+            echo "## 更新内容"
+            echo
+            echo "$zh"
+            echo
+            echo "---"
+            echo
+            echo "Experimental, unofficial SysDVR sysmodule with the NSDVR extension, built by GitHub Actions from ${GITHUB_SHA}."
+            echo "Not affiliated with SysDVR; please do not report problems with it upstream. To try it, back up"
+            echo "\`atmosphere/contents/00FF0000A53BB665/\` on the SD card, copy the zip's \`atmosphere\` folder over it and reboot"
+            echo "([details](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/NSDVR.md#trying-it-on-a-switch))."
+            echo
+            echo '```'
+            cat dist/SHA256SUMS.txt
+            echo '```'
+          } > notes.md
+          gh release create "${GITHUB_REF_NAME}" dist/* --repo "${GITHUB_REPOSITORY}" --prerelease \
+            --title "NSDVR server ${VERSION}" --notes-file notes.md
