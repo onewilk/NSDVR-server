@@ -1,6 +1,11 @@
+#include <stdatomic.h>
 #include <string.h>
 #include "next_session.h"
 #include "next_platform.h"
+
+// Extension video sessions that have ended so far. An extension audio session ends together with the
+// video session of its client (see NextSession_Audio).
+static atomic_uint VideoSessionsEnded;
 
 // ----------------------------------------------------------------------------- video
 
@@ -58,12 +63,14 @@ void NextSession_Video(int sock, const NextExtConfig* ext)
 				break;
 		}
 	}
+
+	atomic_fetch_add(&VideoSessionsEnded, 1);
 }
 
 // ----------------------------------------------------------------------------- audio
 
 // Reads whatever control bytes are pending (bounded per call). Returns false once the peer closed
-// its side; the loop then stops polling (a real disconnection is detected by the next send).
+// its side or the socket failed. The NSDVR client never half-closes, so that means it is gone.
 static bool PollControl(int sock, NextCtrlParser* parser)
 {
 	uint8_t tmp[64];
@@ -87,8 +94,16 @@ static bool PollControl(int sock, NextCtrlParser* parser)
 	return true;
 }
 
+// A send fails only after the socket buffer has stayed full for 10 s. When a client vanishes without
+// its FIN or RST reaching the console (e.g. the app was swiped away), video and PCM audio hit that in
+// about 10 s, but with Opus 64k the audio session lingered for 40-80 s in testing, and the audio port
+// refuses the client's next connection all that time. So the audio session also ends when the client
+// closes its side, and when a video session ends (the video port notices in about 10 s). A client
+// whose video merely reconnected gets its audio back within a second, as after a network change.
 void NextSession_Audio(int sock, const NextExtConfig* ext)
 {
+	const unsigned videoEnded = atomic_load(&VideoSessionsEnded);
+
 	NextPlat_AudioThreadStarted();
 
 	if (ext->tos)
@@ -102,7 +117,6 @@ void NextSession_Audio(int sock, const NextExtConfig* ext)
 
 	NextCtrlParser parser;
 	NextCtrl_Init(&parser);
-	bool pollControl = true;
 
 	NextPacketHeader* pkt = NextPlat_AudioPacket();
 	uint8_t* data = (uint8_t*)pkt + NEXT_PACKET_HEADER_SIZE;
@@ -110,8 +124,10 @@ void NextSession_Audio(int sock, const NextExtConfig* ext)
 
 	while (true)
 	{
-		if (pollControl)
-			pollControl = PollControl(sock, &parser);
+		if (!PollControl(sock, &parser))
+			break;
+		if (atomic_load(&VideoSessionsEnded) != videoEnded)
+			break;
 
 		// Packet boundary: pending control changes take effect here
 		uint32_t offset = NextAudio_BeginPacket(data, cap);

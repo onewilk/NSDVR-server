@@ -662,6 +662,8 @@ static struct {
 	uint8_t metas[512];
 	int sent;
 	uint64_t now;
+	int eofAtSend;   // > 0: the peer closes its side once this many packets were sent
+	int endVideoAt;  // > 0: a (one-packet) video session ends right after this send
 } FP;
 
 static struct __attribute__((packed)) { NextPacketHeader h; uint8_t data[0x54000]; } FakeVideo;
@@ -708,10 +710,23 @@ bool NextPlat_SendAll(int sock, const void* buf, uint32_t size, bool allowIncomi
 	FP.sent++;
 	if (size != h->DataSize + 18u)
 		return false;
+	if (FP.endVideoAt && FP.sent == FP.endVideoAt)
+	{
+		// Another thread's video session: on the console it runs in parallel with the audio loop
+		FP.endVideoAt = 0;
+		const int left = FP.sendsLeft;
+		FP.sendsLeft = 1;
+		NextExtConfig video = NextExt_ParseHandshake((const uint8_t*)"\xAA\xAA\xAA\xAA" "03\x01\x07\x00\x04\x00\x00\x00\x03\x00\x00", 16);
+		video.diag = false;
+		NextSession_Video(2, &video);
+		FP.sendsLeft = left;
+	}
 	return --FP.sendsLeft > 0;
 }
 int NextPlat_RecvNonBlocking(int sock, void* buf, uint32_t size)
 {
+	if (FP.eofAtSend && FP.sent >= FP.eofAtSend)
+		return -1;
 	if (FP.ctrlPos >= FP.ctrlLen)
 		return 0;
 	size_t n = (size_t)FP.ctrlChunk < size ? (size_t)FP.ctrlChunk : size;
@@ -758,6 +773,21 @@ static void TestSessions(void)
 	}
 	printf("  audio session: %d packets (PCM24 %d, ADPCM %d, OPUS %d, error packets %d)\n", FP.sent, pcm24, adpcm, opus, errors);
 	CHECK(FP.slots[0] == 0xE1 && pcm24 >= 1 && adpcm >= 1 && opus >= 10 && errors >= 2 && order, "codec switches via control messages, error packets");
+
+	// The client closed its side: the audio session ends at once instead of when sending fails
+	memset(&FP, 0, sizeof(FP));
+	FP.sendsLeft = 40;
+	FP.eofAtSend = 5;
+	NextSession_Audio(1, &ext);
+	CHECK(FP.sent == 5, "audio session ends when the client closes its side");
+
+	// A video session ended (its client vanished): the audio session ends with it
+	memset(&FP, 0, sizeof(FP));
+	FP.sendsLeft = 40;
+	FP.endVideoAt = 5;
+	NextSession_Audio(1, &ext);
+	printf("  audio session with a video session ending after packet 5: %d packets in total\n", FP.sent);
+	CHECK(FP.sent == 6, "audio session ends when a video session ends");
 
 	// Video with diagnostics: every 1 s (fake clock) a type-3 packet follows a video packet
 	memset(&FP, 0, sizeof(FP));
